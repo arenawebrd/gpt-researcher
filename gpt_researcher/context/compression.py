@@ -1,3 +1,4 @@
+import os
 from .retriever import SearchAPIRetriever
 from langchain.retrievers import (
     ContextualCompressionRetriever,
@@ -17,7 +18,7 @@ class ContextCompressor:
         self.documents = documents
         self.kwargs = kwargs
         self.embeddings = embeddings
-        self.similarity_threshold = 0.38
+        self.similarity_threshold = os.environ.get("SIMILARITY_THRESHOLD", 0.38)
 
     def __get_contextual_retriever(self):
         splitter = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=100)
@@ -42,7 +43,6 @@ class ContextCompressor:
 
     def get_context(self, query, max_results=5, cost_callback=None):
         compressed_docs = self.__get_contextual_retriever()
-        print(compressed_docs)
         if cost_callback:
             cost_callback(estimate_embedding_cost(model=OPENAI_EMBEDDING_MODEL, docs=self.documents))
         relevant_docs = compressed_docs.invoke(query)

@@ -7,6 +7,7 @@ from gpt_researcher.master.prompts import *
 from gpt_researcher.scraper.scraper import Scraper
 from gpt_researcher.utils.llm import *
 
+from json_repair import repair_json
 
 def get_retriever(retriever):
     """
@@ -19,9 +20,6 @@ def get_retriever(retriever):
 
     """
     match retriever:
-        case "tavily":
-            from gpt_researcher.retrievers import TavilySearch
-            retriever = TavilySearch
         case "google":
             from gpt_researcher.retrievers import GoogleSearch
             retriever = GoogleSearch
@@ -40,6 +38,12 @@ def get_retriever(retriever):
         case "bing":
             from gpt_researcher.retrievers import BingSearch
             retriever = BingSearch
+        case "tavily":
+            from gpt_researcher.retrievers import TavilySearch
+            retriever = TavilySearch
+        case "custom":
+            from gpt_researcher.retrievers import CustomRetriever
+            retriever = CustomRetriever
 
         case _:
             raise Exception("Retriever not found.")
@@ -52,7 +56,7 @@ async def choose_agent(query, cfg, parent_query=None, cost_callback: callable = 
     Chooses the agent automatically
     Args:
         parent_query: In some cases the research is conducted on a subtopic from the main query.
-        Tge parent query allows the agent to know the main context for better reasoning.
+        The parent query allows the agent to know the main context for better reasoning.
         query: original query
         cfg: Config
         cost_callback: callback for calculating llm costs
@@ -70,6 +74,7 @@ async def choose_agent(query, cfg, parent_query=None, cost_callback: callable = 
                 {"role": "user", "content": f"task: {query}"}],
             temperature=0,
             llm_provider=cfg.llm_provider,
+            llm_kwargs=cfg.llm_kwargs,
             cost_callback=cost_callback
         )
         agent_dict = json.loads(response)
@@ -103,12 +108,15 @@ async def get_sub_queries(query: str, agent_role_prompt: str, cfg, parent_query:
             {"role": "user", "content": generate_search_queries_prompt(query, parent_query, report_type, max_iterations=max_research_iterations)}],
         temperature=0,
         llm_provider=cfg.llm_provider,
+        llm_kwargs=cfg.llm_kwargs,
         cost_callback=cost_callback
     )
 
-    print("response : ", response)
+    repaired_response = repair_json(response)
+    #print("response : ", response)
+    print("repaired_response : ", repaired_response)
 
-    sub_queries = json.loads(response)
+    sub_queries = json.loads(repaired_response)
     return sub_queries
 
 
@@ -206,6 +214,7 @@ async def summarize_url(query, raw_data, agent_role_prompt, cfg, cost_callback: 
                 {"role": "user", "content": f"{generate_summary_prompt(query, raw_data)}"}],
             temperature=0,
             llm_provider=cfg.llm_provider,
+            llm_kwargs=cfg.llm_kwargs,
             cost_callback=cost_callback
         )
     except Exception as e:
@@ -261,6 +270,7 @@ async def generate_report(
             stream=True,
             websocket=websocket,
             max_tokens=cfg.smart_token_limit,
+            llm_kwargs=cfg.llm_kwargs,
             cost_callback=cost_callback
         )
     except Exception as e:
@@ -298,6 +308,7 @@ async def get_report_introduction(query, context, role, config, websocket=None, 
             stream=True,
             websocket=websocket,
             max_tokens=config.smart_token_limit,
+            llm_kwargs=config.llm_kwargs,
             cost_callback=cost_callback
         )
 
